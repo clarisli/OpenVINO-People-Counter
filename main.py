@@ -96,7 +96,6 @@ def infer_on_stream(args, client):
     """
     # Initialise the class
     infer_network = Network()
-    counter = PeopleCounter(200)
     object_detector = YoloDetector()
     log.debug('object detector {}'.format(object_detector))
 
@@ -111,27 +110,19 @@ def infer_on_stream(args, client):
     ### Handle the input stream ###
     input_stream = get_input_stream(args.input)
     cap = init_video_capture(input_stream)
+    
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    dist_threshold = cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 5
+    counter = PeopleCounter(dist_threshold, fps)
+    
     single_image_mode = args.input.endswith('.jpg') or args.input.endswith('.bmp')
-
-    is_async_mode = not single_image_mode
-    wait_key_code = 1 if is_async_mode else 0
-    if is_async_mode:
-        flag, frame = cap.read()
-
-    cur_request_id = 0
-    next_request_id = 1
-
+    wait_key_code = 1
+    request_id = 0
 
     ### Loop until stream is over ###
     while cap.isOpened():
         ### Read from the video capture ###
-        if is_async_mode:
-            flag, next_frame = cap.read()
-            request_id = next_request_id
-        else:
-            flag, frame = cap.read()
-            request_id = cur_request_id
-        
+        flag, frame = cap.read()
         if not flag:
             break
         
@@ -143,13 +134,13 @@ def infer_on_stream(args, client):
         infer_network.exec_net(in_frame, request_id)
         det_time = time() - start_time
         
-        ### TWait for the result ###
-        if infer_network.wait(cur_request_id) == 0:
+        ### Wait for the result ###
+        if infer_network.wait(request_id) == 0:
              ### Get the results of the inference request ###
-            output = infer_network.get_output(cur_request_id)
+            output = infer_network.get_output(request_id)
             qualified_objects = object_detector.get_qualified_objects(output, infer_network,  prob_threshold, args.iou_threshold, in_frame.shape[2:],
                                              frame.shape[:-1])
-            out_frame = draw_boxes(frame, qualified_objects, args.raw_output_message, labels_map)
+            frame = draw_boxes(frame, qualified_objects, args.raw_output_message, labels_map)
 
             ### Extract any desired stats from the results ###
             ### Calculate and send relevant information on ###
@@ -164,21 +155,17 @@ def infer_on_stream(args, client):
                 client.publish("person/duration", json.dumps({"duration": duration}))
             client.publish("person", json.dumps({"count": len(qualified_objects)}))    
         
-            out_frame = draw_performance_stats(out_frame, det_time)
-            ### Send the frame to the FFMPEG server ###
-            sys.stdout.buffer.write(out_frame)
-            sys.stdout.flush()
-
+            frame = draw_performance_stats(frame, det_time)
+            counter.increment_frame_count()
+        ### Send the frame to the FFMPEG server ###
+        sys.stdout.buffer.write(frame)
+        sys.stdout.flush()
         
         ### Write an output image if `single_image_mode` ###
         if single_image_mode:
-            cv2.imwrite('output_image.jpg', out_frame)
+            cv2.imwrite('output_image.jpg', frame)
 
 
-        if is_async_mode:
-            cur_request_id, next_request_id = next_request_id, cur_request_id
-            frame = next_frame
-        
         key_pressed = cv2.waitKey(wait_key_code)
         if key_pressed == 27:
             break

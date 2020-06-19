@@ -5,27 +5,25 @@ import logging as log
 
 from yolo import YoloDetector
 
-#log.basicConfig(level=log.DEBUG)
-
 class PeopleCounter:
 
     class Person:
     
-        def __init__(self, obj, start_time=time.time()):
+        def __init__(self, obj, frame_id):
             self.centroidx, self.centroidy = self._get_centroid(obj)
-            self.start_time = start_time
-            self.last_occurance_time = start_time
-            
-        def get_duration(self):
-            return self.last_occurance_time - self.start_time
+            self.first_frame = frame_id
+            self.last_occurance_frame = frame_id
         
+        def get_duration(self, fps):
+            return (self.last_occurance_frame - self.first_frame + 1)/fps
+
         def _get_centroid(self, obj):
             centroidx, centroidy = (obj['xmin'] + obj['xmax'])*1.0/2, (obj['ymin'] + obj['ymax'])*1.0/2
             return centroidx, centroidy
 
-        def update(self, obj):
+        def update(self, obj, frame_id):
             self.centroidx, self.centroidy = self._get_centroid(obj)
-            self.last_occurance_time = time.time()
+            self.last_occurance_frame = frame_id
 
         def get_distance(self, obj):
             centroidx, centroidy = self._get_centroid(obj)
@@ -35,11 +33,16 @@ class PeopleCounter:
         
 
 
-    def __init__(self, dist_threshold):
+    def __init__(self, dist_threshold, fps=10):
         self.total_count = 0
         self.current_count = 0
         self.people = []
         self.dist_threshold = dist_threshold
+        self._frame_count = 0
+        self._fps = fps
+
+    def increment_frame_count(self):
+        self._frame_count += 1
 
     def is_new_entry(self, objects):
         new_count = self._get_new_count(objects)
@@ -51,7 +54,7 @@ class PeopleCounter:
         for obj in objects:
             if self._is_new_person(obj):
                 count += 1
-                new_person = PeopleCounter.Person(obj, time.time())
+                new_person = PeopleCounter.Person(obj, self._frame_count)
                 self.people.append(new_person)
         return count
 
@@ -61,15 +64,14 @@ class PeopleCounter:
             person = self.people[i]
             distance = person.get_distance(obj)
             if distance < self.dist_threshold:
-                self.people[i].update(obj)
+                self.people[i].update(obj, self._frame_count)
                 return False
         return True
 
     def get_new_exit_durations(self):
-        now = time.time()
         durations = []
         for person in self.people:
-            if now - person.last_occurance_time > 0.5:
-                durations.append(person.get_duration())
+            if self._frame_count - person.last_occurance_frame > 12:
+                durations.append(person.get_duration(self._fps))
                 self.people.remove(person)
         return durations
