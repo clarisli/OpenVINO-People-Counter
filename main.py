@@ -56,7 +56,8 @@ def build_argparser():
     parser.add_argument("-m", "--model", required=True, type=str,
                         help="Path to an xml file with a trained model.")
     parser.add_argument("-i", "--input", required=True, type=str,
-                        help="Path to image or video file")
+                        help="Path to image or video file. (Specify 'cam' to work with "
+                                            "camera)")
     parser.add_argument("-l", "--cpu_extension", required=False, type=str,
                         default=None,
                         help="MKLDNN (CPU)-targeted custom layers."
@@ -115,7 +116,8 @@ def infer_on_stream(args, client):
     dist_threshold = cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 4
     counter = PeopleCounter(dist_threshold, fps)
     
-    single_image_mode = args.input.endswith('.jpg') or args.input.endswith('.bmp')
+    number_input_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    number_input_frames = 1 if number_input_frames != -1 and number_input_frames < 0 else number_input_frames
     wait_key_code = 1
     request_id = 0
 
@@ -162,7 +164,7 @@ def infer_on_stream(args, client):
         sys.stdout.flush()
         
         ### Write an output image if `single_image_mode` ###
-        if single_image_mode:
+        if number_input_frames == 1:
             cv2.imwrite('output_image.jpg', frame)
 
 
@@ -184,18 +186,21 @@ def draw_performance_stats(frame, det_time):
 
 def get_input_stream(args_input):
     if args_input == 'CAM':
-        input_stream = 0
+        return 0
+    elif os.path.isfile(args_input):
+        return args_input
     else:
-        assert os.path.isfile(args_input), "File doesn't exist"
-        input_stream = args_input
-    return input_stream
+        log.error("ERROR: file doesn't exist")
+        sys.exit()
+
 
 def init_video_capture(input_stream):
     cap = cv2.VideoCapture(input_stream)
     if input_stream:
         cap.open(input_stream)
     if not cap.isOpened():
-        log.error("ERROR: failed to open the video file")
+        log.error("ERROR: failed to open the video")
+        sys.exit()
     return cap
 
 def preprocess_frame(frame, n, c, h, w):
