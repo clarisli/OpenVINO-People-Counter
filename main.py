@@ -112,7 +112,7 @@ def infer_on_stream(args, client):
     cap = init_video_capture(input_stream)
     
     fps = cap.get(cv2.CAP_PROP_FPS)
-    dist_threshold = cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 5
+    dist_threshold = cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 4
     counter = PeopleCounter(dist_threshold, fps)
     
     single_image_mode = args.input.endswith('.jpg') or args.input.endswith('.bmp')
