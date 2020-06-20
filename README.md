@@ -105,7 +105,7 @@ Clone the repository: https://github.com/mystic123/tensorflow-yolo-v3
 
 ```
 git clone https://github.com/mystic123/tensorflow-yolo-v3
-d tensorflow-yolo-v3
+cd tensorflow-yolo-v3
 git checkout ed60b90
 ```
 
