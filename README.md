@@ -50,6 +50,12 @@ You'll need to convert the pre-trained YOLO model to IR for this to work.
     ​    
 ## Setup
 
+### Install dependencies
+
+```
+pip install -r requirements.txt
+```
+
 ### Install Intel® Distribution of OpenVINO™ toolkit
 
 Utilize the classroom workspace, or refer to the relevant instructions for your operating system for this step.
